@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Milano Cortina 2026 — Men’s Hockey Tap Bracket</title>
+  <style>
+    :root{--bg:#0b1220;--card:#111b2e;--muted:#8fa3c8;--text:#eef3ff;--accent:#ffd166;--win:#2dd4bf;--lose:#64748b;--line:#24324f}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    header{padding:16px 14px 10px;position:sticky;top:0;background:linear-gradient(180deg,rgba(11,18,32,.98),rgba(11,18,32,.86));backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:5}
+    h1{margin:0 0 6px;font-size:18px}
+    .sub{margin:0;color:var(--muted);font-size:13px;line-height:1.25}
+    .wrap{padding:14px;max-width:900px;margin:0 auto}
+    .grid{display:grid;gap:12px}
+    @media (min-width:780px){.grid{grid-template-columns:1fr 1fr}}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+    .title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .title h2{margin:0;font-size:15px}
+    .pill{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:4px 8px;border-radius:999px}
+    .match{display:grid;gap:8px;margin:10px 0}
+    .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    button.team{width:100%;padding:12px 10px;border-radius:12px;border:1px solid var(--line);background:#0f1930;color:var(--text);font-size:14px;font-weight:650;text-align:left}
+    button.team[disabled]{opacity:.45;filter:saturate(.6)}
+    button.team.win{border-color:rgba(45,212,191,.7);box-shadow:0 0 0 2px rgba(45,212,191,.18) inset}
+    button.team.lose{opacity:.6}
+    .out{color:var(--muted);font-size:12px}
+    .next{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+    .next strong{color:var(--accent)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .smallbtn{background:#0f1930;border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:12px;font-weight:650}
+    .smallbtn:active{transform:translateY(1px)}
+    .footer{color:var(--muted);font-size:12px;line-height:1.35;margin-top:16px}
+    .seed{color:var(--muted);font-weight:700}
+    .err{background:#2a1b1b;border:1px solid #5b2c2c;color:#ffd1d1;padding:12px;border-radius:12px;margin-top:12px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>🏒 Milano Cortina 2026 — Men’s Hockey Bracket (Tap-to-Advance)</h1>
+  <p class="sub">Tap a team in each matchup. Your pick auto-advances. Semifinals are auto <em>re-seeded</em> (highest remaining seed vs lowest).</p>
+</header>
+
+<div class="wrap">
+  <div class="actions">
+    <button class="smallbtn" onclick="resetAll()">Reset bracket</button>
+    <button class="smallbtn" onclick="copyResults()">Copy results</button>
+  </div>
+
+  <noscript>
+    <div class="err"><strong>JavaScript is disabled</strong>. This bracket needs JavaScript to show teams and allow taps. Open the hosted page (github.io) in Safari/Chrome (not inside a preview).</div>
+  </noscript>
+
+  <div id="jsError" class="err" style="display:none"></div>
+
+  <div class="grid">
+    <section class="card" id="qualCard">
+      <div class="title"><h2>Qualification (Play‑In)</h2><span class="pill">Seeds 5–12</span></div>
+      <div id="qualification"></div>
+    </section>
+
+    <section class="card" id="qfCard">
+      <div class="title"><h2>Quarterfinals</h2><span class="pill">1–4 get byes</span></div>
+      <div id="quarterfinals"></div>
+    </section>
+
+    <section class="card" id="sfCard">
+      <div class="title"><h2>Semifinals</h2><span class="pill">Re-seeded</span></div>
+      <div id="semifinals"></div>
+    </section>
+
+    <section class="card" id="medalsCard">
+      <div class="title"><h2>Medal Games</h2><span class="pill">Bronze & Gold</span></div>
+      <div id="medals"></div>
+      <div class="next"><div>🏅 Champion:</div><strong id="champion">—</strong></div>
+    </section>
+  </div>
+
+  <div class="footer">
+    <div><strong>How it works:</strong> Qualification (5–12), then QFs (1 vs winner 8/9, 2 vs winner 7/10, 3 vs winner 6/11, 4 vs winner 5/12), then re-seeded semifinals.</div>
+    <div style="margin-top:6px;">Tip: Add this page to your phone’s home screen (Safari: Share → Add to Home Screen).</div>
+  </div>
+</div>
+
+<script>
+  // If any JS error happens, show it clearly
+  window.addEventListener('error', (e) => {
+    const box = document.getElementById('jsError');
+    box.style.display = 'block';
+    box.innerHTML = '<strong>Bracket script failed to run:</strong> ' + (e.message || 'Unknown error') + '<br><br>' +
+      'Fix: make sure the repo has <code>index.html</code> at the root and you are opening the <code>github.io</code> link in Safari/Chrome.';
+  });
+
+  const TEAMS = {
+    1: "🇨🇦 Canada",
+    2: "🇺🇸 United States",
+    3: "🇸🇰 Slovakia",
+    4: "🇫🇮 Finland",
+    5: "🇨🇭 Switzerland",
+    6: "🇩🇪 Germany",
+    7: "🇸🇪 Sweden",
+    8: "🇨🇿 Czechia",
+    9: "🇩🇰 Denmark",
+    10: "🇱🇻 Latvia",
+    11: "🇫🇷 France",
+    12: "🇮🇹 Italy"
+  };
+
+  const state = {
+    qual: { q1:null, q2:null, q3:null, q4:null },
+    qf:   { qf1:null, qf2:null, qf3:null, qf4:null },
+    sf:   { sf1:null, sf2:null },
+    medal:{ bronze:null, gold:null },
+  };
+
+  const QUAL = [
+    { id:'q1', label:'Q1', a:5, b:12 },
+    { id:'q2', label:'Q2', a:6, b:11 },
+    { id:'q3', label:'Q3', a:7, b:10 },
+    { id:'q4', label:'Q4', a:8, b:9 },
+  ];
+
+  const QF = [
+    { id:'qf1', label:'QF1', a:1, from:'q4' },
+    { id:'qf2', label:'QF2', a:2, from:'q3' },
+    { id:'qf3', label:'QF3', a:3, from:'q2' },
+    { id:'qf4', label:'QF4', a:4, from:'q1' },
+  ];
+
+  function teamName(seed){ return TEAMS[seed] ?? '—'; }
+
+  function seedFromPicked(picked){
+    if(!picked) return null;
+    const entry = Object.entries(TEAMS).find(([s,name]) => name === picked);
+    return entry ? Number(entry[0]) : null;
+  }
+
+  function renderMatch(container, match, getB, onPick, picked){
+    const b = getB();
+    const aName = teamName(match.a);
+    const bName = b ? teamName(b) : '—';
+    const disabled = !b;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'match';
+
+    const top = document.createElement('div');
+    top.className = 'out';
+    top.innerHTML = `<span class="seed">${match.label}</span> — tap a team to advance`;
+
+    const btns = document.createElement('div');
+    btns.className = 'btns';
+
+    const btnA = document.createElement('button');
+    btnA.className = 'team';
+    btnA.textContent = aName;
+    btnA.onclick = () => onPick(aName);
+
+    const btnB = document.createElement('button');
+    btnB.className = 'team';
+    btnB.textContent = bName;
+    btnB.onclick = () => onPick(bName);
+    btnB.disabled = disabled;
+
+    if(picked === aName){ btnA.classList.add('win'); btnB.classList.add('lose'); }
+    else if(picked === bName){ btnB.classList.add('win'); btnA.classList.add('lose'); }
+
+    btns.appendChild(btnA);
+    btns.appendChild(btnB);
+
+    const next = document.createElement('div');
+    next.className = 'next';
+    next.innerHTML = `<div>Winner:</div><strong>${picked ?? '—'}</strong>`;
+
+    wrap.appendChild(top);
+    wrap.appendChild(btns);
+    wrap.appendChild(next);
+    container.appendChild(wrap);
+  }
+
+  function renderMedalMatch(container, label, aName, bName, key){
+    const ready = !!(aName && bName);
+    const picked = state.medal[key];
+
+    const wrap = document.createElement('div');
+    wrap.className = 'match';
+
+    const top = document.createElement('div');
+    top.className = 'out';
+    top.innerHTML = `<span class="seed">${label}</span> — tap a team to select winner`;
+
+    const btns = document.createElement('div');
+    btns.className = 'btns';
+
+    const btnA = document.createElement('button');
+    btnA.className = 'team';
+    btnA.textContent = aName ?? '—';
+    btnA.disabled = !ready;
+    btnA.onclick = () => { state.medal[key] = aName; render(); };
+
+    const btnB = document.createElement('button');
+    btnB.className = 'team';
+    btnB.textContent = bName ?? '—';
+    btnB.disabled = !ready;
+    btnB.onclick = () => { state.medal[key] = bName; render(); };
+
+    if(picked === aName){ btnA.classList.add('win'); btnB.classList.add('lose'); }
+    else if(picked === bName){ btnB.classList.add('win'); btnA.classList.add('lose'); }
+
+    btns.appendChild(btnA);
+    btns.appendChild(btnB);
+
+    const next = document.createElement('div');
+    next.className = 'next';
+    next.innerHTML = `<div>Winner:</div><strong>${picked ?? '—'}</strong>`;
+
+    wrap.appendChild(top);
+    wrap.appendChild(btns);
+    wrap.appendChild(next);
+    container.appendChild(wrap);
+  }
+
+  function cascadeFromQualification(){
+    state.qf = { qf1:null, qf2:null, qf3:null, qf4:null };
+    state.sf = { sf1:null, sf2:null };
+    state.medal = { bronze:null, gold:null };
+  }
+  function cascadeFromQuarterfinals(){
+    state.sf = { sf1:null, sf2:null };
+    state.medal = { bronze:null, gold:null };
+  }
+  function cascadeFromSemis(){
+    state.medal = { bronze:null, gold:null };
+  }
+
+  function buildSemifinals(){
+    const winners = Object.values(state.qf).filter(Boolean);
+    if(winners.length < 4) return [ {aName:'—', bName:'—', ready:false}, {aName:'—', bName:'—', ready:false} ];
+
+    const seeded = winners
+      .map(name => ({ name, seed: seedFromPicked(name) }))
+      .filter(x => x.seed !== null)
+      .sort((x,y) => x.seed - y.seed);
+
+    const high = seeded[0];
+    const low  = seeded[seeded.length-1];
+    const mid  = seeded.slice(1, seeded.length-1);
+
+    return [
+      { aName: high.name, bName: low.name, ready:true },
+      { aName: mid[0].name, bName: mid[1].name, ready:true },
+    ];
+  }
+
+  function buildMedals(){
+    const sf = buildSemifinals();
+    const sf1 = sf[0];
+    const sf2 = sf[1];
+    const sf1w = state.sf.sf1;
+    const sf2w = state.sf.sf2;
+
+    const sf1l = sf1w ? (sf1w === sf1.aName ? sf1.bName : sf1.aName) : null;
+    const sf2l = sf2w ? (sf2w === sf2.aName ? sf2.bName : sf2.aName) : null;
+
+    return { goldA: sf1w ?? null, goldB: sf2w ?? null, bronzeA: sf1l, bronzeB: sf2l };
+  }
+
+  function render(){
+    const qualDiv = document.getElementById('qualification');
+    qualDiv.innerHTML = '';
+    QUAL.forEach(m => {
+      renderMatch(qualDiv, m, () => m.b, (picked) => { state.qual[m.id]=picked; cascadeFromQualification(); render(); }, state.qual[m.id]);
+    });
+
+    const qfDiv = document.getElementById('quarterfinals');
+    qfDiv.innerHTML = '';
+    QF.forEach(m => {
+      const getB = () => {
+        const picked = state.qual[m.from];
+        return picked ? seedFromPicked(picked) : null;
+      };
+      renderMatch(qfDiv, m, getB, (picked) => { state.qf[m.id]=picked; cascadeFromQuarterfinals(); render(); }, state.qf[m.id]);
+    });
+
+    const sfDiv = document.getElementById('semifinals');
+    sfDiv.innerHTML = '';
+    const sfMatchups = buildSemifinals();
+
+    sfMatchups.forEach((m, idx) => {
+      const id = idx===0 ? 'sf1' : 'sf2';
+      const picked = state.sf[id];
+
+      const wrap = document.createElement('div');
+      wrap.className = 'match';
+
+      const top = document.createElement('div');
+      top.className = 'out';
+      top.innerHTML = `<span class="seed">SF${idx+1}</span> — tap a team to advance`;
+
+      const btns = document.createElement('div');
+      btns.className = 'btns';
+
+      const btnA = document.createElement('button');
+      btnA.className = 'team';
+      btnA.textContent = m.aName;
+      btnA.disabled = !m.ready;
+      btnA.onclick = () => { state.sf[id]=m.aName; cascadeFromSemis(); render(); };
+
+      const btnB = document.createElement('button');
+      btnB.className = 'team';
+      btnB.textContent = m.bName;
+      btnB.disabled = !m.ready;
+      btnB.onclick = () => { state.sf[id]=m.bName; cascadeFromSemis(); render(); };
+
+      if(picked === m.aName){ btnA.classList.add('win'); btnB.classList.add('lose'); }
+      else if(picked === m.bName){ btnB.classList.add('win'); btnA.classList.add('lose'); }
+
+      btns.appendChild(btnA);
+      btns.appendChild(btnB);
+
+      const next = document.createElement('div');
+      next.className='next';
+      next.innerHTML = `<div>Winner:</div><strong>${picked ?? '—'}</strong>`;
+
+      wrap.appendChild(top);
+      wrap.appendChild(btns);
+      wrap.appendChild(next);
+      sfDiv.appendChild(wrap);
+    });
+
+    const medalsDiv = document.getElementById('medals');
+    medalsDiv.innerHTML='';
+    const {goldA, goldB, bronzeA, bronzeB} = buildMedals();
+    renderMedalMatch(medalsDiv, 'Bronze', bronzeA, bronzeB, 'bronze');
+    renderMedalMatch(medalsDiv, 'Gold', goldA, goldB, 'gold');
+
+    document.getElementById('champion').textContent = state.medal.gold ?? '—';
+  }
+
+  function resetAll(){
+    state.qual = { q1:null, q2:null, q3:null, q4:null };
+    state.qf   = { qf1:null, qf2:null, qf3:null, qf4:null };
+    state.sf   = { sf1:null, sf2:null };
+    state.medal= { bronze:null, gold:null };
+    render();
+  }
+
+  async function copyResults(){
+    const lines = [];
+    lines.push("Milano Cortina 2026 — Men's Hockey Tap Bracket");
+    lines.push("Qualification:");
+    QUAL.forEach(m => lines.push(`  ${m.label}: ${teamName(m.a)} vs ${teamName(m.b)} — Winner: ${state.qual[m.id] ?? '—'}`));
+    lines.push("Quarterfinals:");
+    QF.forEach(m => {
+      const opp = state.qual[m.from] ? state.qual[m.from] : '—';
+      lines.push(`  ${m.label}: ${teamName(m.a)} vs ${opp} — Winner: ${state.qf[m.id] ?? '—'}`);
+    });
+    lines.push("Semifinals:");
+    lines.push(`  SF1 Winner: ${state.sf.sf1 ?? '—'}`);
+    lines.push(`  SF2 Winner: ${state.sf.sf2 ?? '—'}`);
+    lines.push("Medals:");
+    lines.push(`  Bronze winner: ${state.medal.bronze ?? '—'}`);
+    lines.push(`  Gold winner (Champion): ${state.medal.gold ?? '—'}`);
+
+    const text = lines.join("
+");
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Results copied to clipboard!');
+    } catch(e) {
+      prompt('Copy results:', text);
+    }
+  }
+
+  // Run immediately
+  render();
+</script>
+</body>
+</html>
